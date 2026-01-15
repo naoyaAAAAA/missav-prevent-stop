@@ -20,7 +20,7 @@
         return originalPause.apply(this, args);
     };
 
-    // 自分の操作（ユーザークリックなど）では停止できるように設定
+    // 自分の操作（ユーザークリックなど）では停止できるように設定（not working right now）
     window.addEventListener('keydown', (e) => {
         if (e.code === 'Space') {
             const video = document.querySelector('video');
