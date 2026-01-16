@@ -1,34 +1,61 @@
-// ==UserScript==
-// @name         MissAV Prevent Forced Pause
-// @namespace    http://tampermonkey.net/
-// @version      1.1
-// @description  Blocks forced pause on missav
-// @match        https://missav.ai/*
-// @grant        none
-// ==/UserScript==
+  // ==UserScript==
+  // @name         MissAV Auto-Pause Blocker
+  // @namespace    http://tampermonkey.net/
+  // @version      1.0
+  // @description  別タブに移動しても動画が停止しないようにする
+  // @author       You
+  // @match        https://missav.ai/*
+  // @match        https://missav.com/*
+  // @match        https://*.missav.ai/*
+  // @match        https://*.missav.com/*
+  // @grant        none
+  // @run-at       document-idle
+  // ==/UserScript==
 
-(function() {
-    'use strict';
+  (function() {
+      'use strict';
 
-    // pause関数を上書き（偽物に差し替える）
-    const originalPause = HTMLMediaElement.prototype.pause;
-    HTMLMediaElement.prototype.pause = function(...args) {
-        if (!this._allowPause) {
-            console.log('[Tampermonkey] Prevented forced pause');
-            return;
-        }
-        return originalPause.apply(this, args);
-    };
+      let userAction = false;
 
-    // 自分の操作（ユーザークリックなど）では停止できるように設定（not working right now）
-    window.addEventListener('keydown', (e) => {
-        if (e.code === 'Space') {
-            const video = document.querySelector('video');
-            if (video) {
-                video._allowPause = true;
-                video.pause();
-                video._allowPause = false;
-            }
-        }
-    });
-})();
+      // ユーザー操作を検知
+      document.addEventListener('click', () => {
+          userAction = true;
+          setTimeout(() => userAction = false, 500);
+      }, true);
+
+      document.addEventListener('keydown', (e) => {
+          if (e.code === 'Space' || e.key === 'k' || e.key === 'K') {
+              userAction = true;
+              setTimeout(() => userAction = false, 500);
+          }
+      }, true);
+
+      // window.playerが利用可能になるまで待機してオーバーライド
+      const overridePlayerPause = () => {
+          if (window.player && !window.player._pauseOverridden) {
+              const originalPause = window.player.pause.bind(window.player);
+              window.player._pauseOverridden = true;
+
+              window.player.pause = function() {
+                  if (userAction) {
+                      return originalPause();
+                  }
+                  // blur等による自動停止を無視
+                  console.log('[MissAV] Auto-pause blocked');
+              };
+
+              console.log('[MissAV] Pause override applied');
+          }
+      };
+
+      // 定期的にチェック（プレイヤーが後から読み込まれる場合に対応）
+      const interval = setInterval(() => {
+          overridePlayerPause();
+          if (window.player && window.player._pauseOverridden) {
+              clearInterval(interval);
+          }
+      }, 500);
+
+      // 念のため30秒後にインターバルを停止
+      setTimeout(() => clearInterval(interval), 30000);
+  })();
